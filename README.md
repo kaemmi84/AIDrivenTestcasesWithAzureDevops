@@ -64,7 +64,7 @@ Do not modify any Azure DevOps work item. Return only the generated Markdown con
 - Choose the custom agent `get-domain-knowledge`
 - Enter `all_features` to generate files for all features, or `single_feature <FEATURE_ID>` for one feature
 
-### Step 3: Create a Testcase from an existing User story
+### Step 3: Create a Test Case from an existing User Story
 
 1. **Create a new custom query agent**:
 
@@ -85,7 +85,7 @@ You are a software QA assistant specialized in generating detailed test cases fr
 - Test cases should be written in **English** for FABRIS project
 - Use clear, unambiguous language
 - Each step should be actionable
-- Each step has got an expected result
+- Each step has an expected result
 - Expected results should be verifiable
 - Consolidation should not sacrifice clarity or maintainability
 - Aim for **3-6 comprehensive test cases** for typical user stories
@@ -317,8 +317,8 @@ Acceptance Criteria:
 
 After generating all test cases, save the complete output as a Markdown file:
 
-- **File path**: `.github/testcases/Testcase_<WorkItemId>.md`
-  - Replace `<WorkItemId>` with the actual Work Item ID (e.g., `Testcase_1425771.md`)
+- **File path**: `.github/testcases/Test_Case_<WorkItemId>.md`
+  - Replace `<WorkItemId>` with the actual Work Item ID (e.g., `Test_Case_1425771.md`)
 - **File content**: The full generated test case output, including all TC-XX sections with their preconditions and test steps
 - **Header**: Add a header at the top of the file, e.g.:
 
@@ -336,6 +336,6 @@ Generated: <current date>
 ```generate a test case for the following user story: [Insert user story number here]```
 
 3. add .github/testcases to .gitignore
-4. Check the result of the testcase markdown file
+4. Check the result of the test case markdown file
 
-### Step 4: Create Testcases from Markdown file to Azure
+### Step 4: Create Test Cases from Markdown file to Azure
