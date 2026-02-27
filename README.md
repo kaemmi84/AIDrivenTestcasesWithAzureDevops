@@ -338,4 +338,43 @@ Generated: <current date>
 3. add .github/testcases to .gitignore
 4. Check the result of the test case markdown file
 
-### Step 4: Create Test Cases from Markdown file to Azure
+### Step 4: Create Test Cases from Markdown File to Azure DevOps
+
+After test cases are generated as Markdown files, import them into Azure DevOps as Test Case work items.
+
+1. **Prepare the input**
+- Ensure the file exists at `.github/testcases/Test_Case_<WorkItemId>.md`
+- Confirm the file contains all `TC-XX` sections with preconditions and steps
+
+2. **Create a custom import agent**
+```yaml
+name: import-testcases-to-ado
+description: Import test cases from a Markdown file and create Azure DevOps Test Case work items.
+argument-hint: "Provide a Work Item ID (e.g., 1425771) or a Markdown file path."
+tools: ['read', 'search', 'agent', 'microsoft/azure-devops-mcp/wit_create_work_item', 'microsoft/azure-devops-mcp/wit_get_work_item', 'microsoft/azure-devops-mcp/wit_get_work_item_type']
+---
+Inputs:
+- Work Item ID (preferred) or direct Markdown file path
+
+Process:
+1) Load `.github/testcases/Test_Case_<WorkItemId>.md`
+2) Parse each `TC-XX` section into:
+   - Title
+   - Preconditions
+   - Steps with expected results
+3) For each test case, create an Azure DevOps **Test Case** work item with:
+   - Title = TC title
+   - Description = Preconditions
+   - Steps = table steps
+4) Link each created Test Case to the original User Story (parent or related link)
+Do not modify the source User Story.
+Return a summary of created Test Case IDs.
+```
+
+3. **Run the agent**
+- In Copilot Chat, run `import-testcases-to-ado`
+- Provide the Work Item ID
+
+4. **Validate results**
+- Confirm new Test Case items exist in Azure DevOps
+- Verify each test case is linked to the original User Story
