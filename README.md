@@ -4,6 +4,13 @@
 
 This document outlines how to create a test case using a Custom Agent in Copilot and save it directly to Azure DevOps. It includes steps for understanding the application context, building feature-level domain context, integrating Azure DevOps MCP, and generating test cases.
 
+The custom agents used in this guide are included in this repository under `.github/agents/`:
+
+- `.github/agents/ado-mcp-connection-check.agent.md`
+- `.github/agents/get-domain-knowledge.agent.md`
+- `.github/agents/generate-testcases-from-user-story.agent.md` (includes a handoff to the import agent)
+- `.github/agents/import-testcases-to-ado.agent.md`
+
 ## Steps
 
 ### Step 1: Integrating Azure DevOps MCP
@@ -22,6 +29,7 @@ To save the generated test case in Azure DevOps, integrate Azure DevOps MCP:
 3. **Verify the connection**:
     - In Copilot Chat, run a simple read action (for example, fetch a known work item).
     - Confirm that Azure DevOps data is returned without errors.
+    - Alternatively, run the custom agent `ado-mcp-connection-check` from `.github/agents/ado-mcp-connection-check.agent.md`.
 
 4. **Use it for test case persistence**:
     - Generate a test case with your Custom Agent.
@@ -39,6 +47,8 @@ Before generating test cases for individual user stories, build a concise functi
 **Remember the GUID from the address bar.**
 
 2. **Create a new custom query agent**:
+
+The full agent definition is also available at `.github/agents/get-domain-knowledge.agent.md`.
 
 ```yaml
 name: get-domain-knowledge
@@ -68,11 +78,19 @@ Do not modify any Azure DevOps work item. Return only the generated Markdown con
 
 1. **Create a new custom query agent**:
 
+The full agent definition is also available at `.github/agents/generate-testcases-from-user-story.agent.md` and includes a handoff to the import agent.
+
 ````yaml
 ---
+name: generate-testcases-from-user-story
 description: 'This agent generates detailed test cases from Azure DevOps User Stories. It reads the acceptance criteria of a user story based on the Work Item ID and creates structured test cases as text output with **minimal number of test cases while ensuring maximum test coverage**.'
-argument-hint: '
-tools: ['vscode', 'execute', 'read', 'edit', 'search', 'agent', 'microsoft/azure-devops-mcp/wit_get_work_item', 'microsoft/azure-devops-mcp/wit_get_work_item_type', 'microsoft/azure-devops-mcp/wit_get_work_items_batch_by_ids', 'microsoft/azure-devops-mcp/wit_get_work_items_for_iteration', 'todo']
+argument-hint: "Provide a Work Item ID (User Story)."
+tools: ['read', 'edit', 'search', 'agent', 'microsoft/azure-devops-mcp/wit_get_work_item', 'microsoft/azure-devops-mcp/wit_get_work_item_type', 'microsoft/azure-devops-mcp/wit_get_work_items_batch_by_ids', 'microsoft/azure-devops-mcp/wit_get_work_items_for_iteration']
+handoffs:
+  - label: Import test cases to Azure DevOps
+    agent: import-testcases-to-ado
+    prompt: "Import the generated test cases for the same Work Item ID into Azure DevOps as Test Case work items and link them to the User Story."
+    send: false
 ---
 This agent generates detailed test cases from Azure DevOps User Stories. It reads the acceptance criteria of a user story based on the Work Item ID and creates structured test cases as text output with **minimal number of test cases while ensuring maximum test coverage**. The agent follows a systematic approach to analyze the acceptance criteria, identify related scenarios, and consolidate them into comprehensive test cases that cover multiple scenarios and edge cases where appropriate. The goal is to optimize the test suite by reducing redundancy while maintaining clarity and effectiveness in testing.
 
@@ -337,6 +355,7 @@ Generated: <current date>
 
 3. add .github/testcases to .gitignore
 4. Check the result of the test case markdown file
+5. Optional: use the `Import test cases to Azure DevOps` handoff to continue with Step 4
 
 ### Step 4: Create Test Cases from Markdown File to Azure DevOps
 
@@ -347,6 +366,9 @@ After test cases are generated as Markdown files, import them into Azure DevOps 
 - Confirm the file contains all `TC-XX` sections with preconditions and steps
 
 2. **Create a custom import agent**
+
+The full agent definition is also available at `.github/agents/import-testcases-to-ado.agent.md`.
+
 ```yaml
 name: import-testcases-to-ado
 description: Import test cases from a Markdown file and create Azure DevOps Test Case work items.
