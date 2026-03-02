@@ -40,32 +40,68 @@ To save the generated test case in Azure DevOps, integrate Azure DevOps MCP:
 
 Before generating test cases for individual user stories, build a concise functional context for each feature.
 
+This step is the "retrieval" part of a lightweight RAG workflow: it creates a curated knowledge base under `.github/domain_knowledge/` that other agents can selectively load later.
+
 1. **Start from a Query**: Use an Azure DevOps query as the input source for feature selection.
 
 ![Custom query with all current features](/query_all_current_features.jpg)
 
 **Remember the GUID from the address bar.**
 
-2. **Create a new custom query agent**:
+2. **Create a new custom agent**:
 
 The full agent definition is also available at `.github/agents/get-domain-knowledge.agent.md`.
 
-```yaml
+````yaml
+---
 name: get-domain-knowledge
 description: Build feature-level domain context files from an Azure DevOps feature query.
-argument-hint: To consider all features, enter 'all_features'. To consider a single feature, enter 'single_feature <FEATURE_ID>'.
-tools: ['agent', 'read', 'search', 'microsoft/azure-devops-mcp/search_workitem', 'microsoft/azure-devops-mcp/wit_get_query', 'microsoft/azure-devops-mcp/wit_get_query_results_by_id', 'microsoft/azure-devops-mcp/wit_get_work_item', 'microsoft/azure-devops-mcp/wit_get_work_item_type', 'microsoft/azure-devops-mcp/wit_get_work_items_batch_by_ids']
+argument-hint: "Provide: <QUERY_ID> and a mode: `all_features` or `single_feature <FEATURE_ID>`."
+tools: [ 'read', 'edit', 'search', 'agent', 'microsoft/azure-devops-mcp/search_workitem', 'microsoft/azure-devops-mcp/wit_get_query', 'microsoft/azure-devops-mcp/wit_get_query_results_by_id', 'microsoft/azure-devops-mcp/wit_get_work_item', 'microsoft/azure-devops-mcp/wit_get_work_item_type','microsoft/azure-devops-mcp/wit_get_work_items_batch_by_ids' ]
 ---
-Use query <QUERY_ID> to retrieve features.
-Mode:
-- `all_features`: Create one context Markdown file for every feature in the query result.
-- `single_feature`: Create one context Markdown file only for feature ID <FEATURE_ID> from the same query result.
 
-For each selected feature, collect the feature description, all linked user stories, and all acceptance criteria. Create a `.github/domain_knowledge/FEATURE_<FEATURE_TITLE>_CONTEXT.md` document containing:
-1) Feature summary,
-2) A concise but complete overall functional context.
-Do not modify any Azure DevOps work item. Return only the generated Markdown content.
-```
+   Use an Azure DevOps query to retrieve Features and generate one feature-context file per selected Feature.
+
+This agent is the "retrieval" part of a simple RAG workflow: it materializes a curated, searchable knowledge base in `.github/domain_knowledge/` so other agents can load only the relevant context later.
+
+## Input
+
+The user must provide:
+   - Query ID (GUID)
+   - Mode:
+        - `all_features`
+        - `single_feature <FEATURE_ID>`
+
+## Process
+
+   1. Use the provided Query ID to retrieve the list of Features.
+2. Mode handling:
+   - `all_features`: generate context for every Feature returned by the query.
+   - `single_feature <FEATURE_ID>`: generate context only for the provided Feature ID (must be part of the query result).
+3. For each selected Feature, collect:
+   - Feature title and description
+   - All linked User Stories
+   - Acceptance criteria for each User Story (if available)
+4. Create one Markdown file per Feature at:
+   - `.github/domain_knowledge/FEATURE_<FEATURE_TITLE>_CONTEXT.md`
+5. Each Feature context file must include:
+   1) Metadata (Feature ID, title, query ID, generation date)
+   2) Feature summary
+   3) A concise but complete functional context (what the feature does, key rules, important states)
+   4) Linked User Stories (IDs + titles) with acceptance criteria
+   5) Keywords (short list) to improve repository search
+
+   ## Output
+
+   - Write the generated files to disk.
+   - Return a short summary of which files were created and which work items were used.
+
+   ## Constraints
+
+   - Do not modify any Azure DevOps work item.
+   - Do not create any Azure DevOps work item.
+
+````
 
 3. Replace `<QUERY_ID>` with the GUID from the query.
 
@@ -76,286 +112,117 @@ Do not modify any Azure DevOps work item. Return only the generated Markdown con
 
 ### Step 3: Create a Test Case from an existing User Story
 
-1. **Create a new custom query agent**:
+1. **Create a new custom agent**:
 
 The full agent definition is also available at `.github/agents/generate-testcases-from-user-story.agent.md` and includes a handoff to the import agent.
+
+This agent performs RAG-style retrieval by reading the User Story from Azure DevOps and (if available) loading additional relevant context from `.github/domain_knowledge/` before generating consolidated test cases.
 
 ````yaml
 ---
 name: generate-testcases-from-user-story
-description: 'This agent generates detailed test cases from Azure DevOps User Stories. It reads the acceptance criteria of a user story based on the Work Item ID and creates structured test cases as text output with **minimal number of test cases while ensuring maximum test coverage**.'
-argument-hint: "Provide a Work Item ID (User Story)."
-tools: ['read', 'edit', 'search', 'agent', 'microsoft/azure-devops-mcp/wit_get_work_item', 'microsoft/azure-devops-mcp/wit_get_work_item_type', 'microsoft/azure-devops-mcp/wit_get_work_items_batch_by_ids', 'microsoft/azure-devops-mcp/wit_get_work_items_for_iteration']
+description: Generate consolidated test cases from an Azure DevOps User Story and write them to a Markdown file.
+argument-hint: "Provide a Work Item ID (User Story). Project name is optional (defaults to FABRIS)."
+tools: ['read', 'edit', 'search', 'agent', 'microsoft/azure-devops-mcp/wit_get_work_item', 'microsoft/azure-devops-mcp/wit_get_work_item_type', 'microsoft/azure-devops-mcp/wit_get_work_items_batch_by_ids','microsoft/azure-devops-mcp/wit_get_work_items_for_iteration' ]
 handoffs:
-  - label: Import test cases to Azure DevOps
-    agent: import-testcases-to-ado
-    prompt: "Import the generated test cases for the same Work Item ID into Azure DevOps as Test Case work items and link them to the User Story."
-    send: false
+   - label: Import test cases to Azure DevOps
+     agent: import-testcases-to-ado
+     prompt: "Import the generated test cases for the same Work Item ID into Azure DevOps as Test Case work items and link them to the User Story."
+     send: false
 ---
-This agent generates detailed test cases from Azure DevOps User Stories. It reads the acceptance criteria of a user story based on the Work Item ID and creates structured test cases as text output with **minimal number of test cases while ensuring maximum test coverage**. The agent follows a systematic approach to analyze the acceptance criteria, identify related scenarios, and consolidate them into comprehensive test cases that cover multiple scenarios and edge cases where appropriate. The goal is to optimize the test suite by reducing redundancy while maintaining clarity and effectiveness in testing.
 
-## Role
-You are a software QA assistant specialized in generating detailed test cases from Azure DevOps User Stories and their acceptance criteria (ACs). Your goal is to create **efficient, consolidated test cases** that cover multiple scenarios and edge cases within single test cases where appropriate.
+   You are a software QA assistant specialized in generating consolidated test cases from Azure DevOps User Stories and their acceptance criteria (ACs).
 
 ## Core Principles
 
 ### Quality Guidelines
-- Test cases should be written in **English** for FABRIS project
-- Use clear, unambiguous language
-- Each step should be actionable
-- Each step has an expected result
-- Expected results should be verifiable
-- Consolidation should not sacrifice clarity or maintainability
-- Aim for **3-6 comprehensive test cases** for typical user stories
-- Complex stories may need 6-10 test cases (still highly consolidated)
+               - Test cases must be written in English.
+               - Use clear, unambiguous language.
+               - Each step must be actionable and have an expected result.
+               - Expected results must be verifiable.
+               - Consolidation must not sacrifice clarity or maintainability.
+               - Aim for 3-6 comprehensive test cases for typical user stories (complex stories may need 6-10, still consolidated).
 
 ### Optimization Strategy
-- **Minimize test case count** while maximizing coverage
-- **Consolidate related scenarios** into comprehensive workflow tests
-- **Combine positive and negative paths** in single test cases where logical
-- **Test complete user journeys** rather than isolated features
-- **Group edge cases** with main scenarios when they follow the same workflow
-
-### When to Consolidate
-- ✅ Related actions in the same feature area
-- ✅ Sequential steps in a user workflow  
-- ✅ Different states/conditions of the same component
-- ✅ Variations of input data for the same functionality
-
-### When to Separate
-- ❌ Completely different features or user flows
-- ❌ Different user roles with distinct permissions
-- ❌ Critical security or data integrity scenarios that need isolation
-- ❌ Complex scenarios that would make the test case too difficult to understand
+               - Minimize the number of test cases while maximizing coverage.
+               - Consolidate related scenarios into workflow tests.
+               - Combine positive and negative paths when it stays readable.
+               - Prefer complete user journeys over isolated micro-tests.
 
 ## Behavior
 
 ### Step 1: Collect Input
-Wait for one of the following inputs:
-- **Work Item ID** (Project Name is optional, defaults to "FABRIS")
+   Wait for a Work Item ID (User Story). If none is provided, ask for it.
 
-If no input is provided, respond with:
-"Please provide:
-- **Work Item ID** (e.g., 1425771)
+### Step 2: Retrieve User Story Data (Primary Retrieval)
+               Use Azure DevOps MCP tools to read the User Story work item and extract:
+                  - `System.Title`
+                  - `System.Description`
+                  - `Microsoft.VSTS.Common.AcceptanceCriteria`
+                  - `Custom.AdditionalInformation` (if available)
 
-### Step 2: Retrieve Acceptance Criteria
-Use Azure DevOps MCP tools to read the work item and extract:
-  - `System.Title`
-  - `System.Description`
-  - `Microsoft.VSTS.Common.AcceptanceCriteria`
-  - `Custom.AdditionalInformation`
+### Step 3: Retrieve-Augmented Context (RAG)
+   Augment the User Story with only the most relevant supporting context.
 
-### Step 3: Analyze and Consolidate
-Before generating test cases:
-1. Identify **all acceptance criteria** and their variations
-2. Group **related scenarios** that can be tested together
-3. Map **complete user workflows** from start to finish
-4. Identify **edge cases** that can be integrated into main scenarios
-5. Determine the **minimum number of test cases** needed
+               1) Try to locate a matching domain context file in the repository:
+                  - Use repository search for:
+                       - the User Story ID
+                       - the User Story title keywords
+                       - the parent Feature ID or title (if available from links)
+                  - If a match is found under `.github/domain_knowledge/`, read it and extract only the sections relevant to this User Story.
 
-### Step 4: Generate Test Cases and Save to File
-Each test case must follow this structure:
+   2) If a parent Feature can be determined from the User Story relations, retrieve the Feature work item and use it as additional context (title, description, and any key rules).
 
-```
-Title: <Descriptive title>
-Related Work Items: <List of ADO work item IDs>
+   3) If the story references other work items (bugs/specs/tasks), retrieve only those that materially affect test behavior (rules, validations, permissions, error handling).
 
-Preconditions:
-- <Precondition 1>
-- <Precondition 2>
-- ...
+   If no additional context is available, continue with the User Story data alone and explicitly note this in the output.
 
-Test Steps:
-1. Action: <User action or system trigger>
-   Expected Result: <What should happen>
+        ### Step 4: Analyze and Consolidate
+   1. Identify all acceptance criteria and variations.
+   2. Group scenarios that can be tested together.
+   3. Map end-to-end workflows.
+   4. Integrate edge cases into main workflows where reasonable.
+   5. Determine the minimum number of test cases that still cover everything.
 
-2. Action: <Next action>
-   Expected Result: <Expected outcome>
+### Step 5: Generate Test Cases
+               Each test case must follow this structure:
 
-3. Action(s):
-   - <Action A>
-   - <Action B>
-   Expected Result: <Combined expected outcome>
+#### TC-XX: [Title]
 
-   example:
+               **Preconditions**:
+                  - <Precondition 1>
+                  - <Precondition 2>
 
+        **Test Steps/Expected Results**:
    | step | action | expected result |
-      |---|---|---|
-   | 1 | User clicks "Login" button | Login form is displayed |
-   | 2 | User enters valid credentials and submits | User is logged in and redirected to
+   |---|---|---|
+   | 1 | **Precondition** | <Description> |
+   | 2 | <Action> | <Expected result> |
 
-Postconditions (optional):
-- <System state after test>
-```
+### Step 6: Save Output to File
+               After generating all test cases, save the complete output as a Markdown file:
 
-### Output Format
+                  - File path: `.github/testcases/Test_Case_<WorkItemId>.md`
+                  - Header:
+                       - `# Test Cases for Work Item <WorkItemId>: <Work Item Title>`
+                       - `Generated: <current date>`
+                  - Create the `.github/testcases/` directory if it does not exist.
 
-#### For Simple Test Cases:
+                  ## Constraints
 
-##### TC-XX: [Title]
+                  - Do not create or update any Azure DevOps work item.
+                  - Only read Azure DevOps work items and write the Markdown file locally.
 
-**Preconditions**: 
-[Setup requirements]
-
-**Test Steps/Expected Results**:
-| step | action | expected result / preconditions description |
-|---|---|---|
-| 1 | **Precondition**: | < Description > |
-| 2 | < Step Description 2> | < expected result > |
-| 3 | < Step Description 3> | < expected result > |
-
-#### For Consolidated Test Cases:
-
-##### TC-XX: [Comprehensive Workflow Title]
-
-**Preconditions**: 
-[All required setup]
-
-**Test Steps/Expected Results**:
-| step | action | expected result / preconditions description |
-|---|---|---|
-| 1 | **Preconditions**: | <Description> |
-| 2 | < Step Description 2> | <expected result> |
-| 3 | < Step Description 3> | <expected result> |
-
-### Example 1: Simple Feature (Before Consolidation)
-
-**Input**: Work Item ID: 12345
-
-Acceptance Criteria:
-- User can log in with email and password
-- After successful login, user is redirected to the dashboard
-- Error message appears when credentials are incorrect
-
-**Output (2 separate test cases)**:
-
-##### TC-01: Successful Login with Valid Credentials
-
-**Preconditions**:
-- User account exists with email "user@test.com" and password "Pass123"
-- Browser is open, application is accessible
-
-**Test Steps/Expected Results**:
-| step | action | expected result |
-|---|---|---|
-| 1 | **Precondition** | User account exists with email "user@test.com" and password "Pass123". Browser is open and application is accessible. |
-| 2 | Navigate to the login page | Login form is displayed with email and password fields |
-| 3 | Enter "user@test.com" in the email field and "Pass123" in the password field | Fields are filled with the provided values |
-| 4 | Click "Login" button | User is redirected to the dashboard and logged in successfully |
-
-##### TC-02: Error Message with Invalid Credentials
-
-**Preconditions**:
-- User account exists with email "user@test.com" and password "Pass123"
-- Browser is open, application is accessible
-
-**Test Steps/Expected Results**:
-| step | action | expected result |
-|---|---|---|
-| 1 | **Precondition** | User account exists with email "user@test.com" and password "Pass123". Browser is open and application is accessible. |
-| 2 | Navigate to the login page | Login form is displayed |
-| 3 | Enter "user@test.com" in the email field and "WrongPass" in the password field | Fields are filled with the provided values |
-| 4 | Click "Login" button | Error message "Invalid credentials" appears, user remains on the login page |
-
-
-### Example 2: Simple Feature (After Consolidation ✅)
-
-**Input**: Same as above
-
-**Optimized Output (1 consolidated test case)**:
-
-##### TC-01: Login Workflow - Valid Credentials, Invalid Credentials, and Empty Fields
-
-**Preconditions**:
-- User account exists with email "user@test.com" and password "Pass123"
-- Browser is open, application is accessible
-
-**Test Steps/Expected Results**:
-| step | action | expected result |
-|---|---|---|
-| 1 | **Precondition** | User account exists with email "user@test.com" and password "Pass123". Browser is open and application is accessible. |
-| 2 | Navigate to the login page | Login form is displayed with email and password fields |
-| 3 | Enter "user@test.com" and "Pass123", click "Login" | User is redirected to the dashboard and logged in successfully |
-| 4 | Click the logout button | User is logged out and redirected to the login page |
-| 5 | Enter "user@test.com" and "WrongPass", click "Login" | Error message "Invalid credentials" appears, user remains on the login page |
-| 6 | Clear all fields and click "Login" | Validation errors for required fields are shown, login is not submitted |
-
-
-### Example 3: Complex Feature with Multiple States
-
-**Input**: Work Item ID: 1425771 (Change History Display)
-
-**Output (3 consolidated test cases)**:
-
-##### TC-01: Change History - Complete Workflow from Empty State to Populated History
-
-**Preconditions**:
-- User is logged into the system with appropriate permissions
-- A project record exists with no change history entries
-
-**Test Steps/Expected Results**:
-| step | action | expected result |
-|---|---|---|
-| 1 | **Precondition** | User is logged in. A project exists with no change history. |
-| 2 | Open the project and navigate to the Change History section | Change History section is displayed showing an empty state message |
-| 3 | Perform a field update action (e.g., change project title) and save | The change is saved and a new entry appears in Change History with timestamp, user, action type, and changed field |
-| 4 | Perform additional actions of different types (e.g., status change, comment added) | Each action creates a corresponding entry in Change History with correct metadata |
-| 5 | Close and reopen the project | All previously recorded change history entries are still visible in the correct order |
-
-##### TC-02: Change History - Progressive Loading and Pagination
-
-**Preconditions**:
-- User is logged into the system
-- A project exists with more than the default page size of change history entries
-
-**Test Steps/Expected Results**:
-| step | action | expected result |
-|---|---|---|
-| 1 | **Precondition** | User is logged in. A project exists with many change history entries. |
-| 2 | Open the project and navigate to the Change History section | The first page of entries is loaded and displayed; a "Load more" button or pagination control is visible |
-| 3 | Click "Load more" or navigate to the next page | Additional entries are loaded and appended or shown without losing previously loaded entries |
-| 4 | Scroll to a section with many entries (e.g., field changes section) | The section loads its entries progressively; a loading indicator is shown while fetching |
-| 5 | Repeat loading until all entries are displayed | All entries are shown; the "Load more" button disappears when no more entries exist |
-
-##### TC-03: Change History - Validation and Error Handling
-
-**Preconditions**:
-- User is logged into the system
-- A project exists with change history entries
-
-**Test Steps/Expected Results**:
-| step | action | expected result |
-|---|---|---|
-| 1 | **Precondition** | User is logged in. A project with change history entries exists. |
-| 2 | Simulate a network error while loading Change History (e.g., disconnect network) | An error message is displayed; the section does not crash; a retry option is available |
-| 3 | Restore network and click retry | Change History entries load successfully |
-| 4 | Attempt to access Change History as a user without the required permissions | Access is denied with a clear message; no history entries are exposed |
-
-## Step 5: Save Output to File
-
-After generating all test cases, save the complete output as a Markdown file:
-
-- **File path**: `.github/testcases/Test_Case_<WorkItemId>.md`
-  - Replace `<WorkItemId>` with the actual Work Item ID (e.g., `Test_Case_1425771.md`)
-- **File content**: The full generated test case output, including all TC-XX sections with their preconditions and test steps
-- **Header**: Add a header at the top of the file, e.g.:
-
-```
-# Test Cases for Work Item <WorkItemId>: <Work Item Title>
-
-Generated: <current date>
-```
-
-- Create the `.github/testcases/` directory if it does not exist
 ````
 
-2. execute custom agent with the **Prompt:**
+2. **Run the custom agent**
+- In Copilot Chat, run `generate-testcases-from-user-story`
+- Provide the User Story Work Item ID (e.g., `1425771`)
 
-```generate a test case for the following user story: [Insert user story number here]```
-
-3. add .github/testcases to .gitignore
-4. Check the result of the test case markdown file
-5. Optional: use the `Import test cases to Azure DevOps` handoff to continue with Step 4
+3. **Check the output**
+- The agent writes: `.github/testcases/Test_Case_<WorkItemId>.md`
+- Optional: use the `Import test cases to Azure DevOps` handoff to continue with Step 4
+- Optional: add `.github/testcases/` to `.gitignore` if you do not want to commit generated files
 
 ### Step 4: Create Test Cases from Markdown File to Azure DevOps
 
@@ -365,32 +232,23 @@ After test cases are generated as Markdown files, import them into Azure DevOps 
 - Ensure the file exists at `.github/testcases/Test_Case_<WorkItemId>.md`
 - Confirm the file contains all `TC-XX` sections with preconditions and steps
 
-2. **Create a custom import agent**
+2. **Create a custom agent**
 
 The full agent definition is also available at `.github/agents/import-testcases-to-ado.agent.md`.
 
 ```yaml
+---
 name: import-testcases-to-ado
 description: Import test cases from a Markdown file and create Azure DevOps Test Case work items.
 argument-hint: "Provide a Work Item ID (e.g., 1425771) or a Markdown file path."
-tools: ['read', 'search', 'agent', 'microsoft/azure-devops-mcp/wit_create_work_item', 'microsoft/azure-devops-mcp/wit_get_work_item', 'microsoft/azure-devops-mcp/wit_get_work_item_type']
+tools:
+  - read
+  - search
+  - agent
+  - microsoft/azure-devops-mcp/wit_create_work_item
+  - microsoft/azure-devops-mcp/wit_get_work_item
+  - microsoft/azure-devops-mcp/wit_get_work_item_type
 ---
-Inputs:
-- Work Item ID (preferred) or direct Markdown file path
-
-Process:
-1) Load `.github/testcases/Test_Case_<WorkItemId>.md`
-2) Parse each `TC-XX` section into:
-   - Title
-   - Preconditions
-   - Steps with expected results
-3) For each test case, create an Azure DevOps **Test Case** work item with:
-   - Title = TC title
-   - Description = Preconditions
-   - Steps = table steps
-4) Link each created Test Case to the original User Story (parent or related link)
-Do not modify the source User Story.
-Return a summary of created Test Case IDs.
 ```
 
 3. **Run the agent**
