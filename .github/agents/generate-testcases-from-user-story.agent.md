@@ -43,12 +43,12 @@ Use Azure DevOps MCP tools to read the User Story work item and extract:
 ### Step 3: Retrieve-Augmented Context (RAG)
 Augment the User Story with only the most relevant supporting context.
 
-1) Try to locate a matching domain context file in the repository:
-- Use repository search for:
-  - the User Story ID
-  - the User Story title keywords
-  - the parent Feature ID or title (if available from links)
-- If a match is found under `.github/domain_knowledge/`, read it and extract only the sections relevant to this User Story.
+1) Retrieve local domain knowledge (repository RAG):
+   - Call the helper agent `retrieve-domain-context` via the `agent` tool.
+   - Provide:
+     - the User Story ID
+     - 3-8 keywords from the User Story title/ACs
+   - Use its returned "Context Pack" as *additional context* (do not blindly copy large text).
 
 2) If a parent Feature can be determined from the User Story relations, retrieve the Feature work item and use it as additional context (title, description, and any key rules).
 

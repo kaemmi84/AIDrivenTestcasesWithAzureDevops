@@ -32,9 +32,29 @@ The user must provide:
 5. Each Feature context file must include:
    1) Metadata (Feature ID, title, query ID, generation date)
    2) Feature summary
-   3) A concise but complete functional context (what the feature does, key rules, important states)
+   3) A concise but complete functional context, using these sections:
+      - Functional Rules
+      - Workflows / States & Transitions
+      - Roles & Permissions
+      - Validations & Error Handling
+      - Integrations / Dependencies (if any)
    4) Linked User Stories (IDs + titles) with acceptance criteria
    5) Keywords (short list) to improve repository search
+
+## Recommended Output Template
+
+Use a stable, searchable structure:
+
+- `# Feature Context: <Feature Title>`
+- `## Metadata`
+- `## Feature Summary`
+- `## Functional Rules`
+- `## Workflows / States & Transitions`
+- `## Roles & Permissions`
+- `## Validations & Error Handling`
+- `## Integrations / Dependencies`
+- `## Linked User Stories`
+- `## Keywords`
 
 ## Output
 
