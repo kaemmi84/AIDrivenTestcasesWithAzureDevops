@@ -46,8 +46,11 @@ Augment the User Story with only the most relevant supporting context.
 1) Retrieve local domain knowledge (repository RAG):
    - Call the helper agent `retrieve-domain-context` via the `agent` tool.
    - Provide:
-     - the User Story ID
-     - 3-8 keywords from the User Story title/ACs
+     - the User Story title
+     - the User Story description
+     - the User Story acceptance criteria
+     - optional: User Story ID / Feature ID (if available)
+     - optional: 3-8 keywords
    - Use its returned "Context Pack" as *additional context* (do not blindly copy large text).
 
 2) If a parent Feature can be determined from the User Story relations, retrieve the Feature work item and use it as additional context (title, description, and any key rules).

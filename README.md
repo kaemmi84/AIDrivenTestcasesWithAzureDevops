@@ -77,6 +77,8 @@ This agent performs RAG-style retrieval by reading the User Story from Azure Dev
 To keep retrieval consistent and maintainable, a dedicated retrieval-only agent is included:
 - [`retrieve-domain-context`](.github/agents/retrieve-domain-context.agent.md)
 
+The retrieval agent infers the best-matching context for the new story from existing domain context files using title/description/acceptance criteria (ID matches are optional boosts, not required).
+
 2. **Run the custom agent**
 - In Copilot Chat, run `generate-testcases-from-user-story`
 - Provide the User Story Work Item ID (e.g., `1425771`)
